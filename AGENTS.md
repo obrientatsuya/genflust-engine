@@ -1,6 +1,6 @@
 # AGENTS.md — Genflust Engine
 
-Rust core + Luau, pixel art 2D, CLI-first, agent-first. Regras para quem contribui (humano ou agente) no repositório **da engine**. Fonte de verdade: `ENGINE_VISION2.md` (`§N` = seção); em conflito, o doc vence. Projetos de jogo têm outro `AGENTS.md` (<1k tokens, gerado por `engine new`).
+Rust core + Luau, pixel art 2D, CLI-first, agent-first. Regras para quem contribui (humano ou agente) no repositório **da engine**. Fonte de verdade: [ENGINE_VISION2.md](ENGINE_VISION2.md) (`§N` = seção); em conflito, o doc vence. Projetos de jogo têm outro `AGENTS.md` (<1k tokens, gerado por `engine new`).
 
 **Status:** planejamento. Itens *(proposta)* não são contrato: validar no jogo de referência (fase 3) antes de congelar. Não inventar API, flag, comando ou formato fora do doc; na dúvida, registrar a pergunta na task em vez de decidir sozinho.
 
