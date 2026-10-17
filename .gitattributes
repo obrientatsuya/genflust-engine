@@ -1,0 +1,6 @@
+# Fim de linha: LF em tudo que é texto (CRLF quebra o diff dos TOML e o hash dos goldens).
+* text=auto eol=lf
+
+# Binários: nunca normalizar
+*.png binary
+*.pak binary

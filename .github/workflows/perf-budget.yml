@@ -1,0 +1,20 @@
+# Perf-budget NÃO roda no CI compartilhado: runner compartilhado é ruidoso
+# demais para a meta de 5% (AGENTS.md §9). Rode manualmente numa máquina
+# declarada (self-hosted) com a baseline dela em perf/baselines.toml.
+name: Perf Budget (manual)
+
+on:
+  workflow_dispatch:
+    inputs:
+      machine:
+        description: 'Máquina declarada (ex.: dev-luiz-win11, dev-amigo-ubuntu)'
+        required: true
+
+jobs:
+  perf-budget:
+    runs-on: [self-hosted]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Perf budget
+        run: cargo xtask perf-budget --machine "${{ inputs.machine }}"

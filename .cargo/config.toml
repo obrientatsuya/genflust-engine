@@ -1,0 +1,9 @@
+# `cargo xtask <comando>` — o único jeito de rodar tooling (sem .sh/.ps1).
+[alias]
+xtask = "run --package xtask --"
+
+# Linker rápido: opcional e SÓ para Linux — nunca global, nunca no Windows.
+# Descomente a linha abaixo se mold (ou troque por lld) estiver instalado na máquina.
+# O amigo no Linux pode manter comentado; headless não exige nada disso.
+[target.x86_64-unknown-linux-gnu]
+# rustflags = ["-C", "link-arg=-fuse-ld=mold"]

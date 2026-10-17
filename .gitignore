@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Estado local do exportador GitHub (retomável por usuário)
+.gh_state.json
+
+# Ferramentas de IA locais (não versionadas)
+.agents/
+.rtk/
+skills-lock.json
+
+# Rust
+target/
+
+# SO / editores
+Thumbs.db
+.DS_Store

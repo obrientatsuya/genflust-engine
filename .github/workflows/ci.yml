@@ -1,0 +1,42 @@
+# CI: o árbitro. PR só entra com os dois sistemas verdes (AGENTS.md §9, Ambiente).
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  check:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # Lê rust-toolchain.toml (versão fixa + rustfmt + clippy).
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Format
+        run: cargo fmt --check
+
+      - name: Clippy
+        run: cargo clippy --all-targets -- -D warnings
+
+      # Inclui os golden hashes: a suíte compara contra o MESMO arquivo
+      # commitado, então Linux e Windows precisam bater (R7).
+      - name: Test
+        run: cargo test
+
+      - name: Arch check
+        run: cargo xtask arch-check
+
+      - name: Token budget
+        run: cargo xtask token-budget
