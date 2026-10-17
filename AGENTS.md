@@ -246,36 +246,14 @@ Jogo de referência (fase 3): Player e NPC compartilham movimento; espada indepe
 
 ## 14. Ambiente (Windows e Linux)
 
-O repo compila e roda nos dois sistemas; **o CI é o árbitro** (PR só entra com os dois verdes). Regras que valem para qualquer contribuidor, humano ou agente.
+Compila nos dois; **o CI é o árbitro** (PR só entra com os dois verdes).
 
-**Toolchain e fim de linha**
-- `rust-toolchain.toml` fixa a versão (1.99.1) + `rustfmt` + `clippy`; rustup cuida da instalação. **`Cargo.lock` é versionado.**
-- `.gitattributes` (`* text=auto eol=lf`, `*.png`/`*.pak` binary) + `.editorconfig` (`end_of_line = lf`). Sem isso, o CRLF quebra o diff dos TOML e o hash dos goldens.
-- No Windows: `git config core.autocrlf false` — o `.gitattributes` manda.
-
-**Tooling**
-- Só `cargo` e `cargo xtask` (alias em `.cargo/config.toml`). Nada de `.sh`/`.ps1` — xtask em Rust é o plano do doc.
-- Nomes de asset e cena em `lower_snake_case`; o `check` rejeita nomes que diferem só por caixa (Windows ignora caixa, Linux não). Caminhos em TOML e na saída sempre com `/`.
-- `.cargo/config.toml`: mold/lld **só** dentro de `[target.x86_64-unknown-linux-gnu]`, nunca no Windows.
-- Hot reload/editor: escrever em arquivo temporário + rename; debounce no watcher (`notify`). No Windows, arquivo aberto por outro processo pode travar a escrita.
-
-**Determinismo (R7)**
-- Float: crate `libm`; sem fast-math, sem `-C target-cpu=native`.
-- Golden hashes commitados: Linux e Windows batem no mesmo arquivo.
-
-**Windows**
-- Target `x86_64-pc-windows-msvc` + VS Build Tools (C++) — o mlua compila o Luau em C++.
-- PowerShell 7 ou Windows Terminal. No PS 5.1, `>` grava UTF-16 e corrompe PNG/golden; a engine grava por flag (`--out`), nunca por redirecionamento.
-- WSL2 (Ubuntu) só para reproduzir falhas do Linux; clone dentro do WSL (`~/`), não em `/mnt/c` (build lento).
-
-**Linux**
-- `build-essential` (ou clang) + `pkg-config`.
-- X11/Wayland/ALSA só entram com as features `window`/`audio`; headless não precisa.
-- mold opcional.
-
-**CI**
-- GitHub Actions, matriz `ubuntu-latest` + `windows-latest`: `cargo fmt --check`, `clippy -D warnings`, `test` (inclui golden hashes), `cargo xtask arch-check`, `cargo xtask token-budget`. PR só entra com os dois verdes.
-- `perf-budget` fora de runner compartilhado (ruído alto demais para a meta de 5%): workflow manual em máquina self-hosted declarada, baseline em `perf/baselines.toml` (`cargo xtask perf-budget --machine <nome>`).
-
-**IA local (não versionado)**
-- Ferramentas de IA (RTK, skills em `.agents/`) são locais e ficam fora do git; quem não usa IA não é afetado.
+- Toolchain fixa em `rust-toolchain.toml` (1.99.1 + rustfmt + clippy); **`Cargo.lock` versionado**. Só `cargo` e `cargo xtask` — sem `.sh`/`.ps1`.
+- LF em tudo: `.gitattributes` (`* text=auto eol=lf`, png/pak binary) + `.editorconfig`. Windows: `git config core.autocrlf false`. CRLF quebra diff de TOML e hash dos goldens.
+- Asset/cena em `lower_snake_case`; `check` rejeita nomes que diferem só por caixa. Caminhos sempre com `/`.
+- Determinismo (R7): `libm`, sem fast-math, sem `-C target-cpu=native`; golden hashes batem nos dois SOs.
+- mold/lld só em `[target.x86_64-unknown-linux-gnu]` (opcional). Hot reload: arquivo temporário + rename, debounce no watcher.
+- Windows: target MSVC + VS Build Tools (C++) (mlua = Luau em C++); PowerShell 7 (o 5.1 grava `>` em UTF-16); saída por `--out`, nunca redirecionamento; WSL2 só p/ reproduzir falhas Linux (clone em `~/`, não `/mnt/c`).
+- Linux: `build-essential` + `pkg-config`; X11/Wayland/ALSA só com features `window`/`audio`; mold opcional.
+- CI: matriz ubuntu+windows → `fmt --check`, `clippy -D warnings`, `test` (goldens), `arch-check`, `token-budget`. `perf-budget`: manual, máquina self-hosted declarada (`perf/baselines.toml`).
+- IA local (RTK, `.agents/`) fora do git; quem não usa IA não é afetado. Setup completo: `docs/ambiente.md`.
