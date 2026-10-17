@@ -32,6 +32,7 @@ Rust core + Luau, pixel art 2D, CLI-first, agent-first. Regras para quem contrib
 | R18 | Sem fallback silencioso: dependência, módulo, socket ou destino inválido = erro com correção | `check`, `test` |
 | R19 | Medir antes de otimizar. Multithread e `luau-jit` só com perfil que justifique, desligados por padrão | `perf-budget` |
 | R20 | Mudar contrato do núcleo: justificar + versionar (pré-1.0: minor + migração; ≥1.0: major) | review |
+| R21 | Respostas do agente enxutas: direto ao ponto, sem repetir o pedido, sem listas decorativas, sem sumários longos | review |
 
 ---
 
