@@ -1,0 +1,17 @@
+[package]
+name = "cli"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+api = { workspace = true }
+ecs = { workspace = true }
+core = { workspace = true }
+gfx = { workspace = true }
+assets = { workspace = true }
+script = { workspace = true }
+fmt-toon = { workspace = true }
+fmt-json = { workspace = true }
+serde = { workspace = true }
+toml = { workspace = true }

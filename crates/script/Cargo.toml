@@ -1,0 +1,13 @@
+[package]
+name = "script"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+api = { workspace = true }
+ecs = { workspace = true }
+core = { workspace = true }
+gfx = { workspace = true }
+assets = { workspace = true }
+mlua = { workspace = true }

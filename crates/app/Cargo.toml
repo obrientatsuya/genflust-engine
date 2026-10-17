@@ -1,0 +1,13 @@
+[package]
+name = "app"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "engine"
+path = "src/main.rs"
+
+[dependencies]
+cli = { workspace = true }
+core = { workspace = true }

@@ -1,13 +1,8 @@
 //! xtask — ferramentas de desenvolvimento e CI (AGENTS.md §9, §13).
+//! Uso: `cargo xtask <arch-check|token-budget|perf-budget>`.
 //!
-//! Uso: `cargo xtask <comando>`
-//!
-//! - `arch-check`    Regras estruturais (R1: arquivo ≤300 linhas, alvo 200)
-//! - `token-budget`  Orçamento de tokens do L0 (`llms.txt` ≤3k tokens)
-//! - `perf-budget`   Orçamento de performance em máquina declarada (fora de runner compartilhado)
-//!
-//! Bootstrap honesto: os comandos cobrem o que existe hoje e ganham dentes
-//! conforme os crates da engine aparecem (grafo, contratos, métodos por trait).
+//! Bootstrap honesto: cobrem o que existe hoje e ganham dentes conforme os
+//! crates da engine aparecem (grafo, contratos, métodos por trait).
 
 use std::env;
 use std::fs;
@@ -56,24 +51,7 @@ fn arch_check() -> ExitCode {
     let mut checked = 0usize;
 
     let root = root();
-    for entry in fs::read_dir(&root).expect("não consegui ler a raiz do workspace") {
-        let path = entry.expect("entrada inválida").path();
-        let name = path
-            .file_name()
-            .and_then(|n| n.to_str())
-            .unwrap_or_default()
-            .to_string();
-        if !path.is_dir() || SKIP_DIRS.contains(&name.as_str()) {
-            continue;
-        }
-        if !path.join("Cargo.toml").is_file() {
-            continue;
-        }
-        let src = path.join("src");
-        if src.is_dir() {
-            walk_rs(&src, &mut violations, &mut warnings, &mut checked);
-        }
-    }
+    walk_crates(&root, &root, &mut violations, &mut warnings, &mut checked);
 
     for (file, lines) in &warnings {
         println!("aviso: {file}: {lines} linhas (alvo {TARGET_LINES})");
@@ -90,8 +68,43 @@ fn arch_check() -> ExitCode {
     }
 }
 
+/// Varre a árvore procurando crates (dir com Cargo.toml) e checa src/**/*.rs.
+fn walk_crates(
+    dir: &Path,
+    root: &Path,
+    violations: &mut Vec<(String, usize)>,
+    warnings: &mut Vec<(String, usize)>,
+    checked: &mut usize,
+) {
+    let entries = match fs::read_dir(dir) {
+        Ok(e) => e,
+        Err(_) => return,
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if !path.is_dir() {
+            continue;
+        }
+        let name = path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or_default();
+        if SKIP_DIRS.contains(&name) {
+            continue;
+        }
+        if path.join("Cargo.toml").is_file() {
+            let src = path.join("src");
+            if src.is_dir() {
+                walk_rs(&src, root, violations, warnings, checked);
+            }
+        }
+        walk_crates(&path, root, violations, warnings, checked);
+    }
+}
+
 fn walk_rs(
     dir: &Path,
+    root: &Path,
     violations: &mut Vec<(String, usize)>,
     warnings: &mut Vec<(String, usize)>,
     checked: &mut usize,
@@ -103,14 +116,14 @@ fn walk_rs(
     for entry in entries.flatten() {
         let path = entry.path();
         if path.is_dir() {
-            walk_rs(&path, violations, warnings, checked);
+            walk_rs(&path, root, violations, warnings, checked);
         } else if path.extension().and_then(|e| e.to_str()) == Some("rs") {
             let lines = fs::read_to_string(&path)
                 .map(|s| s.lines().count())
                 .unwrap_or(0);
             *checked += 1;
             let display = path
-                .strip_prefix(root())
+                .strip_prefix(root)
                 .unwrap_or(&path)
                 .display()
                 .to_string()

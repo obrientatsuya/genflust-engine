@@ -13,6 +13,7 @@ skills-lock.json
 
 # Rust
 target/
+out/
 
 # SO / editores
 Thumbs.db

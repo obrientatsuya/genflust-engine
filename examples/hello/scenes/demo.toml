@@ -1,0 +1,20 @@
+schema = 1
+name = "demo"
+
+[[entities]]
+key = "player"
+tags = ["player"]
+[entities.components.transform]
+x = 48
+y = 120
+[entities.components.sprite]
+asset = "player_idle"
+
+[[entities]]
+key = "coin"
+tags = ["coin"]
+[entities.components.transform]
+x = 160
+y = 90
+[entities.components.sprite]
+asset = "coin"
