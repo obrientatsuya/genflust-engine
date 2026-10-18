@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 
-use api::{Command, EngineError, Formatter, Value};
+use api::{Command, EngineError};
 use assets::Registry;
 use core::{Clock, Rng, Scene, Tick};
 use ecs::World;
@@ -15,25 +15,8 @@ use script::ScriptHost;
 
 use crate::EngineConfig;
 
-/// Erro de montagem do projeto (config/assets/cena/script).
-#[derive(Debug)]
-pub enum ProjectError {
-    Missing(EngineError),
-}
-
-impl ProjectError {
-    pub fn into_engine(self) -> EngineError {
-        match self {
-            Self::Missing(e) => e,
-        }
-    }
-}
-
-impl From<EngineError> for ProjectError {
-    fn from(e: EngineError) -> Self {
-        Self::Missing(e)
-    }
-}
+/// Erro de montagem do projeto é o próprio `EngineError` (R13) — sem wrapper.
+pub type BuildResult = Result<Project, EngineError>;
 
 /// Caminho de arquivo do projeto: relativo, sem escapar da raiz (ENG-01-05-S02).
 /// Absolutos e `..` são rejeitados com diagnóstico.
@@ -75,8 +58,9 @@ pub struct Project {
 
 impl Project {
     /// Monta o projeto em `root` (cwd). Seed fixa por padrão (R7).
-    pub fn build(root: &Path, seed: u64) -> Result<Self, ProjectError> {
+    pub fn build(root: &Path, seed: u64) -> BuildResult {
         let config = EngineConfig::load(root)?;
+        config.validate_features()?;
 
         let palette = match &config.palette {
             Some(p) => Palette::load(&project_path(root, p)?)?,
@@ -88,7 +72,7 @@ impl Project {
         if assets_dir.is_dir() {
             let errors = registry.load_dir(&assets_dir, &palette)?;
             if let Some(e) = errors.into_iter().next() {
-                return Err(ProjectError::Missing(e));
+                return Err(e);
             }
         }
 
@@ -184,29 +168,6 @@ impl Project {
             })?;
         }
         gfx::write_png(&self.framebuffer, &self.palette, out)
-    }
-
-    /// Saída estruturada do estado (para testes/verificação).
-    pub fn state_value(&self) -> Value {
-        let w = self.world.lock().expect("poisoned");
-        let rows: Vec<Vec<Value>> = w
-            .active()
-            .into_iter()
-            .map(|e| {
-                let t = w
-                    .transform(e)
-                    .map(|t| format!("{:.1},{:.1}", t.x, t.y))
-                    .unwrap_or_default();
-                let s = w.sprite(e).map(|s| s.asset.clone()).unwrap_or_default();
-                vec![Value::i(e.raw() as i64), Value::s(t), Value::s(s)]
-            })
-            .collect();
-        Value::table(vec!["entity".into(), "pos".into(), "sprite".into()], rows)
-    }
-
-    /// Imprime valor com o formatter pedido.
-    pub fn print(&self, title: &str, value: &Value, fmt: &dyn Formatter) {
-        print!("{}", fmt.format(title, value));
     }
 }
 

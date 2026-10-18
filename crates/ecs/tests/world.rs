@@ -121,3 +121,109 @@ fn invalid_batch_leaves_no_partial_state() {
     w.barrier();
     assert_eq!(w.sprite(alive).unwrap().asset, "x");
 }
+
+#[test]
+fn soa_contiguity_and_stable_iteration() {
+    let mut w = World::new();
+    let a = w.spawn("a", Some(1.0), Some(1.0));
+    let b = w.spawn("b", None, None);
+    let c = w.spawn("c", Some(3.0), Some(3.0));
+    w.barrier();
+    assert_eq!(
+        w.component_counts().0,
+        2,
+        "coluna contígua tem só presentes"
+    );
+    assert!(w.transform(b).is_err());
+
+    // remover o do meio não bagunça o mapeamento
+    w.kill(a).unwrap();
+    w.barrier();
+    assert_eq!(w.component_counts().0, 1);
+    assert_eq!(w.transform(c).unwrap(), Transform { x: 3.0, y: 3.0 });
+    // iteração estável por slot: b antes de c
+    let slots: Vec<u32> = w.active().iter().map(|e| e.index()).collect();
+    assert_eq!(slots, vec![b.index(), c.index()]);
+}
+
+#[test]
+fn snapshot_is_canonical_and_excludes_transients() {
+    // Mesmo estado final montado em ordens diferentes → mesma serialização.
+    let build_a = || {
+        let mut w = World::new();
+        let a = w.spawn("a", Some(1.0), Some(2.0));
+        w.add_sprite(
+            a,
+            Sprite {
+                asset: "player_idle".into(),
+            },
+        )
+        .unwrap();
+        let b = w.spawn("b", Some(3.0), Some(4.0));
+        w.set_velocity(b, 1.5, 0.0).unwrap();
+        w.barrier();
+        w.set_name(a, "a").unwrap();
+        w.set_name(b, "b").unwrap();
+        w
+    };
+    let build_b = || {
+        let mut w = World::new();
+        let b = w.spawn("b", None, None);
+        w.add_transform(b, Transform { x: 3.0, y: 4.0 }).unwrap();
+        w.set_velocity(b, 1.5, 0.0).unwrap();
+        let a = w.spawn("a", None, None);
+        w.add_transform(a, Transform { x: 1.0, y: 2.0 }).unwrap();
+        w.add_sprite(
+            a,
+            Sprite {
+                asset: "player_idle".into(),
+            },
+        )
+        .unwrap();
+        w.barrier();
+        w.set_name(a, "a").unwrap();
+        w.set_name(b, "b").unwrap();
+        w
+    };
+
+    let mut wa = build_a();
+    let wb = build_b();
+    assert_eq!(
+        wa.snapshot().to_toml(),
+        wb.snapshot().to_toml(),
+        "ordem canônica independente da ordem de consulta"
+    );
+
+    // transitório (remoção pendente) fica fora do snapshot
+    let c = wa.spawn("c", Some(9.0), Some(9.0));
+    wa.barrier();
+    wa.set_name(c, "c").unwrap();
+    wa.kill(c).unwrap();
+    let snap = wa.snapshot();
+    assert!(
+        !snap.entities.iter().any(|e| e.key == "c"),
+        "entidade em remoção pendente não serializa"
+    );
+}
+
+#[test]
+fn snapshot_roundtrips_through_toml() {
+    let mut w = World::new();
+    let a = w.spawn("a", Some(1.0), Some(2.0));
+    w.add_sprite(
+        a,
+        Sprite {
+            asset: "coin".into(),
+        },
+    )
+    .unwrap();
+    w.set_velocity(a, 0.5, -0.5).unwrap();
+    w.barrier();
+    w.set_name(a, "a").unwrap();
+
+    let snap = w.snapshot();
+    let text = snap.to_toml();
+    let back = ecs::Snapshot::from_toml(&text).unwrap();
+    assert_eq!(snap, back, "roundtrip preserva o estado persistente");
+    assert!(text.contains("coin"));
+}

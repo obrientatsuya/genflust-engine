@@ -81,6 +81,13 @@ fn render_table(out: &mut String, indent: usize, key: &str, value: &Value) {
     for row in rows {
         out.push('\n');
         pad(out, indent + 1);
+        // Linhas são uniformes (só escalares). Aninhar tabela em linha é um
+        // erro do produtor: falha em debug em vez de perder dado em silêncio.
+        debug_assert!(
+            row.iter()
+                .all(|c| !matches!(c, Value::Table { .. } | Value::Map(_))),
+            "tabela TOON: linhas aceitam apenas escalares"
+        );
         out.push_str(&row.iter().map(scalar).collect::<Vec<_>>().join(","));
     }
     out.push('\n');

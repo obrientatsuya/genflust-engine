@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 use api::{EngineError, Formatter, Value};
 use core::DEFAULT_SEED;
 
-use crate::{Project, ProjectError, project::validate_world};
+use crate::{Project, project::validate_world};
 
 pub struct Cli {
     pub format: String,
@@ -26,18 +26,17 @@ pub enum Command {
 /// Executa o comando parseado; devolve o exit code (0 ok, 1 erro, 2 uso).
 pub fn execute(cli: Cli, root: PathBuf) -> i32 {
     let fmt = crate::formatter(&cli.format);
-    match run(cli, &root) {
+    match run(cli, &root, fmt.as_ref()) {
         Ok(code) => code,
         Err(e) => crate::report_error(&e, fmt.as_ref()),
     }
 }
 
-fn run(cli: Cli, root: &Path) -> Result<i32, EngineError> {
-    let fmt = crate::formatter(&cli.format);
+fn run(cli: Cli, root: &Path, fmt: &dyn Formatter) -> Result<i32, EngineError> {
     match cli.command {
-        Command::Check => check(root, fmt.as_ref()),
+        Command::Check => check(root, fmt),
         Command::Run | Command::Screenshot => {
-            let mut project = Project::build(root, cli.seed).map_err(ProjectError::into_engine)?;
+            let mut project = Project::build(root, cli.seed)?;
             project.run_frames(cli.frames)?;
             if matches!(cli.command, Command::Screenshot) {
                 project.save_png(&cli.out)?;
@@ -51,33 +50,19 @@ fn run(cli: Cli, root: &Path) -> Result<i32, EngineError> {
 /// nunca erro (placeholders são primeira classe, §4.8).
 fn check(root: &Path, fmt: &dyn Formatter) -> Result<i32, EngineError> {
     let mut errors: Vec<EngineError> = Vec::new();
-    let mut missing_assets: Vec<String> = Vec::new();
+    let mut missing: Vec<String> = Vec::new();
 
     // Config e cena usam o mesmo carregador/validador do runtime (R15).
-    let project = match Project::build(root, DEFAULT_SEED) {
-        Ok(p) => Some(p),
-        Err(crate::ProjectError::Missing(e)) => {
-            errors.push(e);
-            None
+    match Project::build(root, DEFAULT_SEED) {
+        Ok(project) => {
+            errors.extend(validate_world(&project.world.lock().expect("poisoned")));
+            missing = missing_assets(&project);
         }
-    };
-
-    if let Some(project) = &project {
-        errors.extend(validate_world(&project.world.lock().expect("poisoned")));
-        // Referências de sprite da cena sem arte = placeholder + aviso.
-        let registry = project.registry.lock().expect("poisoned");
-        let world = project.world.lock().expect("poisoned");
-        for e in world.active() {
-            if let Ok(sprite) = world.sprite(e)
-                && registry.resolve(&sprite.asset).is_none()
-            {
-                missing_assets.push(sprite.asset.clone());
-            }
-        }
+        Err(e) => errors.push(e),
     }
 
     if !errors.is_empty() {
-        let rows: Vec<Vec<Value>> = errors
+        let rows = errors
             .iter()
             .map(|e| {
                 vec![
@@ -90,37 +75,39 @@ fn check(root: &Path, fmt: &dyn Formatter) -> Result<i32, EngineError> {
             })
             .collect();
         // Erros vão para stderr (R13); avisos e "ok" ficam no stdout.
-        eprint!(
-            "{}",
-            fmt.format(
-                "errors",
-                &Value::table(
-                    vec![
-                        "code".into(),
-                        "file".into(),
-                        "line".into(),
-                        "msg".into(),
-                        "fix".into()
-                    ],
-                    rows,
-                )
-            )
-        );
+        eprint!("{}", fmt.format("errors", &errors_value(rows)));
         return Ok(1);
     }
 
-    if !missing_assets.is_empty() {
-        missing_assets.sort();
-        missing_assets.dedup();
-        let rows: Vec<Vec<Value>> = missing_assets
-            .into_iter()
-            .map(|n| vec![Value::s(n)])
-            .collect();
+    if !missing.is_empty() {
+        missing.sort();
+        missing.dedup();
+        let rows = missing.into_iter().map(|n| vec![Value::s(n)]).collect();
         print!(
             "{}",
-            fmt.format("missing_assets", &Value::table(vec!["name".into()], rows),)
+            fmt.format("missing_assets", &Value::table(vec!["name".into()], rows))
         );
     }
     println!("check: ok");
     Ok(0)
+}
+
+/// Nomes de sprite da cena sem arte (viram placeholder, §4.8).
+fn missing_assets(project: &Project) -> Vec<String> {
+    let registry = project.registry.lock().expect("poisoned");
+    let world = project.world.lock().expect("poisoned");
+    world
+        .active()
+        .into_iter()
+        .filter_map(|e| world.sprite(e).ok())
+        .filter(|s| registry.resolve(&s.asset).is_none())
+        .map(|s| s.asset.clone())
+        .collect()
+}
+
+fn errors_value(rows: Vec<Vec<Value>>) -> Value {
+    let fields = ["code", "file", "line", "msg", "fix"]
+        .map(str::to_string)
+        .to_vec();
+    Value::table(fields, rows)
 }

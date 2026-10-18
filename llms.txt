@@ -15,11 +15,14 @@ gfx.cam(x,y)                      desloca a câmera
 ent.new(tag,[x],[y]) -> e         cria entidade; ativa na barreira do próximo tick
 ent.each(tag) -> {e,...}          entidades ativas com a tag, ordem estável
 ent.kill(e)                       agenda remoção; o handle fica obsoleto (E010)
+ent.pos(e) -> x, y                lê a posição (exige Transform; E012 sem ele)
+ent.set_vel(e,vx,vy)              guarda a intenção de velocidade (exige Transform; E013)
 
 rnd(n)                            inteiro 0..n-1, determinístico pela seed
 
-# Erros: `errors[N]{code,file,line,msg,fix}` — E010 handle obsoleto · E013 dependência de
-# componente · E016 mutação em draw() proibida · E020 sem engine.toml · E050 erro de script ·
+# Erros: `errors[N]{code,file,line,msg,fix}` — E010 handle obsoleto · E012 sem componente ·
+# E013 dependência de componente · E016 mutação em draw() proibida · E020 sem engine.toml ·
+# E023 caminho fora do projeto · E024/E025 capacidade desconhecida/indisponível · E050 erro de script ·
 # E103 falha ao gravar PNG
 
 # NÃO implementado ainda (não invente): input.* · snd.* · scene.* · msg.* · evt.* · phys.* · juice.*

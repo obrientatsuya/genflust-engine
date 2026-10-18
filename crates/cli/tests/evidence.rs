@@ -94,7 +94,7 @@ fn tick_trace_shows_fixed_phase_order() {
 fn build_err(dir: &Path) -> api::EngineError {
     match Project::build(dir, 42) {
         Ok(_) => panic!("projeto deveria falhar ao montar"),
-        Err(e) => e.into_engine(),
+        Err(e) => e,
     }
 }
 
@@ -145,6 +145,114 @@ fn placeholder_does_not_multiply_across_frames() {
     // 2 assets ausentes na cena (player_idle, coin) → 2 placeholders, estáveis.
     let sprites = p.registry.lock().unwrap().sprites().len();
     assert_eq!(sprites, 2, "placeholders não podem ser recriados por frame");
+}
+
+#[test]
+fn ent_pos_and_set_vel_roundtrip() {
+    let dir = scratch("posvel");
+    write_project(
+        &dir,
+        "name = \"posvel\"\n",
+        "local e\nfunction load() e = ent.new(\"p\", 5, 7) end\nfunction update(dt)\n  local x, y = ent.pos(e)\n  ent.set_vel(e, x + 1, y - 2)\nend\n",
+    );
+    let mut p = Project::build(&dir, 42).expect("monta");
+    p.run_frames(1).expect("run");
+    let world = p.world.lock().unwrap();
+    let e = world.by_tag("p")[0];
+    assert_eq!(
+        world.transform(e).unwrap(),
+        ecs::Transform { x: 5.0, y: 7.0 }
+    );
+    assert_eq!(world.velocity(e).unwrap(), ecs::Velocity { x: 6.0, y: 5.0 });
+    std::fs::remove_dir_all(&dir).ok();
+}
+
+#[test]
+fn pos_without_transform_is_error() {
+    let dir = scratch("poserr");
+    write_project(
+        &dir,
+        "name = \"poserr\"\n",
+        "local e\nfunction load() e = ent.new(\"p\") end\nfunction update(dt)\n  local x = (ent.pos(e))\nend\n",
+    );
+    let mut p = Project::build(&dir, 42).expect("monta");
+    let err = p.run_frames(1).unwrap_err();
+    assert_eq!(err.code, "E012", "pos exige Transform: {err}");
+    std::fs::remove_dir_all(&dir).ok();
+}
+
+#[test]
+fn set_vel_without_transform_is_error() {
+    let dir = scratch("velerr");
+    write_project(
+        &dir,
+        "name = \"velerr\"\n",
+        "local e\nfunction load() e = ent.new(\"p\") end\nfunction update(dt) ent.set_vel(e, 1, 0) end\n",
+    );
+    let mut p = Project::build(&dir, 42).expect("monta");
+    let err = p.run_frames(1).unwrap_err();
+    assert_eq!(err.code, "E013", "set_vel exige Transform: {err}");
+    std::fs::remove_dir_all(&dir).ok();
+}
+
+#[test]
+fn unavailable_capability_is_structured_error() {
+    let dir = scratch("feature");
+    write_project(&dir, "name = \"feature\"\nfeatures = [\"audio\"]\n", "");
+    let err = build_err(&dir);
+    assert_eq!(err.code, "E025");
+    assert!(
+        err.fix.contains("audio"),
+        "fix sugere a correção: {}",
+        err.fix
+    );
+    std::fs::remove_dir_all(&dir).ok();
+}
+
+#[test]
+fn unknown_capability_is_rejected() {
+    let dir = scratch("featurebad");
+    write_project(&dir, "name = \"featurebad\"\nfeatures = [\"warp\"]\n", "");
+    let err = build_err(&dir);
+    assert_eq!(err.code, "E024");
+    std::fs::remove_dir_all(&dir).ok();
+}
+
+#[test]
+fn camera_does_not_change_world_or_hash() {
+    let dir = scratch("cam");
+    std::fs::create_dir_all(dir.join("scenes")).unwrap();
+    std::fs::write(
+        dir.join("scenes/demo.toml"),
+        "schema = 1\n[[entities]]\nkey = \"p\"\ntags = [\"p\"]\n[entities.components.transform]\nx = 5\ny = 7\n",
+    )
+    .unwrap();
+    write_project(
+        &dir,
+        "name = \"cam\"\nscene = \"scenes/demo.toml\"\n",
+        "function update(dt) end\nfunction draw()\n  gfx.cam(10, 20)\n  gfx.clear(0)\n  gfx.rectb(0, 0, 320, 180, 7)\nend\n",
+    );
+    let mut a = Project::build(&dir, 42).expect("monta");
+    let before = {
+        let w = a.world.lock().unwrap();
+        let e = w.resolve("p").unwrap();
+        w.transform(e).unwrap()
+    };
+    a.run_frames(3).expect("run");
+    let after = {
+        let w = a.world.lock().unwrap();
+        let e = w.resolve("p").unwrap();
+        w.transform(e).unwrap()
+    };
+    assert_eq!(before, after, "mover a câmera não altera o mundo (R9)");
+
+    let mut b = Project::build(&dir, 42).expect("monta");
+    b.run_frames(3).expect("run");
+    assert_eq!(
+        a.frame_hash, b.frame_hash,
+        "ordem/composição estável entre execuções"
+    );
+    std::fs::remove_dir_all(&dir).ok();
 }
 
 #[test]

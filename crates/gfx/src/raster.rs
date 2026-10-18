@@ -47,12 +47,12 @@ impl Raster {
                     flipy,
                     label,
                 } => {
-                    let sprite = label
-                        .as_deref()
-                        .map(IndexedSprite::placeholder8)
-                        .or_else(|| sprites.get(*index as usize).cloned())
-                        .unwrap_or_else(|| IndexedSprite::solid(8, 8, 1));
-                    self.spr(fb, &sprite, x - self.cam_x, y - self.cam_y, *flipx, *flipy);
+                    // Sprite vem SEMPRE do registro (inclui placeholders);
+                    // o rótulo é só texto, sem recriar sprite no hot path.
+                    if let Some(sprite) = sprites.get(*index as usize) {
+                        let sprite = sprite.clone();
+                        self.spr(fb, &sprite, x - self.cam_x, y - self.cam_y, *flipx, *flipy);
+                    }
                     if let Some(name) = label {
                         crate::draw_text(fb, name, x - self.cam_x + 2, y - self.cam_y + 2, 1);
                     }

@@ -3,3 +3,4 @@ clear_7=b4c84c83f5468025
 rect_borders=7794b0fdd0ae0c2e
 spr_flip_overlap=d123c02b01f4cdde
 placeholder_player_idle=9b4dcad2dae754f2
+spr_order_tie=22d828b0ee08fc0a

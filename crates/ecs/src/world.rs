@@ -1,24 +1,15 @@
 //! Registro de entidades: slots com geração, free list, nomes/tags e
-//! componentes contíguos (Transform, Sprite). Comandos estruturais (`Op`) só
-//! mudam o mundo na **barreira** do tick (ENGINE_VISION2 §3.2: criar/remover
-//! nunca invalidam a iteração em curso).
+//! componentes contíguos em SoA (Transform, Sprite, Velocity).
+//!
+//! Comandos estruturais (`Op`) só mudam o mundo na **barreira** do tick
+//! (ENGINE_VISION2 §3.2: criar/remover nunca invalidam a iteração em curso).
 
 use std::collections::{HashMap, VecDeque};
 
+use crate::soa::SoA;
 use crate::{EntityId, Lifecycle};
 
-/// Componente Transform: posição no mundo.
-#[derive(Debug, Clone, Copy, PartialEq, Default)]
-pub struct Transform {
-    pub x: f32,
-    pub y: f32,
-}
-
-/// Componente Sprite: referência a um asset por nome.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Sprite {
-    pub asset: String,
-}
+use crate::components::{Sprite, Transform, Velocity};
 
 /// Operação estrutural pendente, aplicada na barreira do próximo tick.
 #[rustfmt::skip]
@@ -41,13 +32,11 @@ pub enum ComponentError {
     DuplicateKey(String),
 }
 
-struct Slot {
-    generation: u32,
-    lifecycle: Lifecycle,
-    name: Option<String>,
-    tags: Vec<String>,
-    transform: Option<Transform>,
-    sprite: Option<Sprite>,
+pub(crate) struct Slot {
+    pub(crate) generation: u32,
+    pub(crate) lifecycle: Lifecycle,
+    pub(crate) name: Option<String>,
+    pub(crate) tags: Vec<String>,
 }
 
 impl Slot {
@@ -57,20 +46,21 @@ impl Slot {
             lifecycle: Lifecycle::Removed,
             name: None,
             tags: Vec::new(),
-            transform: None,
-            sprite: None,
         }
     }
 }
 
 /// O mundo: identidade, ciclo de vida e componentes.
 pub struct World {
-    slots: Vec<Slot>,
+    pub(crate) slots: Vec<Slot>,
     free: Vec<u32>,
     /// nome → índice (chaves de cena).
-    names: HashMap<String, u32>,
+    pub(crate) names: HashMap<String, u32>,
     tags: HashMap<String, Vec<u32>>,
     pending: VecDeque<Op>,
+    pub(crate) transforms: SoA<Transform>,
+    pub(crate) sprites: SoA<Sprite>,
+    pub(crate) velocities: SoA<Velocity>,
 }
 
 impl Default for World {
@@ -87,24 +77,30 @@ impl World {
             names: HashMap::new(),
             tags: HashMap::new(),
             pending: VecDeque::new(),
+            transforms: SoA::new(),
+            sprites: SoA::new(),
+            velocities: SoA::new(),
         }
     }
 
     /// Reserva um ID pendente durante o tick; ativa na barreira.
     pub fn spawn(&mut self, tag: impl Into<String>, x: Option<f32>, y: Option<f32>) -> EntityId {
         let id = self.alloc();
-        let index = id.index() as usize;
-        let slot = &mut self.slots[index];
+        let index = id.index();
+        let slot = &mut self.slots[index as usize];
         slot.lifecycle = Lifecycle::Pending;
         slot.tags = vec![tag.into()];
         if x.is_some() || y.is_some() {
-            slot.transform = Some(Transform {
-                x: x.unwrap_or(0.0),
-                y: y.unwrap_or(0.0),
-            });
+            self.transforms.insert(
+                index,
+                Transform {
+                    x: x.unwrap_or(0.0),
+                    y: y.unwrap_or(0.0),
+                },
+            );
         }
         self.pending.push_back(Op::Spawn {
-            tag: slot.tags[0].clone(),
+            tag: self.slots[index as usize].tags[0].clone(),
             x,
             y,
         });
@@ -186,46 +182,6 @@ impl World {
         Ok(self.slot(entity)?.lifecycle)
     }
 
-    pub fn add_transform(&mut self, entity: EntityId, t: Transform) -> Result<(), ComponentError> {
-        let slot = self.slot_mut(entity)?;
-        slot.transform = Some(t);
-        Ok(())
-    }
-
-    pub fn transform(&self, entity: EntityId) -> Result<Transform, ComponentError> {
-        let slot = self.slot(entity)?;
-        slot.transform.ok_or(ComponentError::Missing("Transform"))
-    }
-
-    pub fn set_transform(&mut self, entity: EntityId, t: Transform) -> Result<(), ComponentError> {
-        let slot = self.slot_mut(entity)?;
-        if slot.transform.is_none() {
-            return Err(ComponentError::Missing("Transform"));
-        }
-        slot.transform = Some(t);
-        Ok(())
-    }
-
-    /// `Sprite` exige `Transform` (ENGINE_VISION2 §3.7: dependência explícita).
-    pub fn add_sprite(&mut self, entity: EntityId, sprite: Sprite) -> Result<(), ComponentError> {
-        let slot = self.slot_mut(entity)?;
-        if slot.transform.is_none() {
-            return Err(ComponentError::Dependency {
-                component: "Sprite",
-                required: "Transform",
-            });
-        }
-        slot.sprite = Some(sprite);
-        Ok(())
-    }
-
-    pub fn sprite(&self, entity: EntityId) -> Result<&Sprite, ComponentError> {
-        let slot = self.slot(entity)?;
-        slot.sprite
-            .as_ref()
-            .ok_or(ComponentError::Missing("Sprite"))
-    }
-
     /// Entidades ativas com a tag, em ordem estável de criação.
     pub fn by_tag(&self, tag: &str) -> Vec<EntityId> {
         self.tags
@@ -262,36 +218,44 @@ impl World {
                 generation: 1,
                 ..Slot::vacant()
             });
+            let slots = self.slots.len();
+            self.transforms.grow(slots);
+            self.sprites.grow(slots);
+            self.velocities.grow(slots);
             EntityId::new(index, 1)
         }
     }
 
     fn release(&mut self, entity: EntityId) {
-        let index = entity.index() as usize;
-        let slot = &mut self.slots[index];
+        let index = entity.index();
+        let slot = &mut self.slots[index as usize];
         if let Some(name) = slot.name.take() {
             self.names.remove(&name);
         }
         for tag in slot.tags.drain(..) {
             if let Some(v) = self.tags.get_mut(&tag) {
-                v.retain(|&i| i != index as u32);
+                v.retain(|&i| i != index);
             }
         }
+        // Componentes saem das colunas contíguas (transitório limpo aqui).
+        self.transforms.remove(index);
+        self.sprites.remove(index);
+        self.velocities.remove(index);
         *slot = Slot {
             generation: entity.generation(),
             ..Slot::vacant()
         };
-        self.free.push(entity.index());
+        self.free.push(index);
     }
 
-    fn slot(&self, entity: EntityId) -> Result<&Slot, ComponentError> {
+    pub(crate) fn slot(&self, entity: EntityId) -> Result<&Slot, ComponentError> {
         self.slots
             .get(entity.index() as usize)
             .filter(|s| s.generation == entity.generation() && s.lifecycle != Lifecycle::Removed)
             .ok_or(ComponentError::Stale)
     }
 
-    fn slot_mut(&mut self, entity: EntityId) -> Result<&mut Slot, ComponentError> {
+    pub(crate) fn slot_mut(&mut self, entity: EntityId) -> Result<&mut Slot, ComponentError> {
         self.slots
             .get_mut(entity.index() as usize)
             .filter(|s| s.generation == entity.generation() && s.lifecycle != Lifecycle::Removed)

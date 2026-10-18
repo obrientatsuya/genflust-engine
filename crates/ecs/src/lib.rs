@@ -1,12 +1,17 @@
 //! ECS mínimo (ENGINE_VISION2 §3.7): identidade geracional, ciclo de vida
-//! com barreiras e componentes opcionais em armazenamento contíguo.
+//! com barreiras e componentes opcionais em armazenamento contíguo (SoA).
 
+mod components;
 mod entity;
+mod snapshot;
+mod soa;
 mod world;
 
+pub use components::{Sprite, Transform, Velocity};
 pub use entity::{EntityId, Lifecycle};
 pub use error::to_engine_error;
-pub use world::{ComponentError, Op, Sprite, Transform, World};
+pub use snapshot::{EntitySnapshot, Snapshot};
+pub use world::{ComponentError, Op, World};
 
 /// Erros do ECS como `EngineError` (R13: sempre estruturado).
 pub mod error {
@@ -32,7 +37,7 @@ pub mod error {
         EngineError::new(
             "E012",
             format!("entidade {entity} não tem componente {component}"),
-            format!("adicione {component} antes de usar"),
+            format!("adicione {component} antes de usar (ex.: ent.new com x,y cria Transform)"),
         )
     }
 

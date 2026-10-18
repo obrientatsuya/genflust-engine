@@ -7,7 +7,7 @@ mod project;
 
 pub use commands::{Cli, Command, execute};
 pub use config::EngineConfig;
-pub use project::{Project, ProjectError};
+pub use project::Project;
 
 use api::{EngineError, Formatter, Value};
 

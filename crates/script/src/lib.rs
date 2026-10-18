@@ -32,6 +32,23 @@ pub struct ScriptHost {
     in_draw: Arc<AtomicBool>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum Callback {
+    Load,
+    Update,
+    Draw,
+}
+
+impl Callback {
+    fn name(self) -> &'static str {
+        match self {
+            Self::Load => "load",
+            Self::Update => "update",
+            Self::Draw => "draw",
+        }
+    }
+}
+
 impl ScriptHost {
     /// Carrega `main.luau` em modo strict e instala os globals (`gfx`, `ent`,
     /// `rnd`) uma única vez. Erro de sintaxe = E050.
@@ -95,25 +112,26 @@ impl ScriptHost {
 
     /// `load()`: montagem inicial antes do primeiro tick (§3.2).
     pub fn call_load(&self) -> Result<(), EngineError> {
-        self.call("load", false)
+        self.call(Callback::Load)
     }
 
     /// `update(dt)`.
     pub fn call_update(&self) -> Result<(), EngineError> {
-        self.call("update", true)
+        self.call(Callback::Update)
     }
 
     /// `draw()`: só gera comandos visuais; ent.* que altera o mundo é
     /// rejeitado pela guarda R9.
     pub fn call_draw(&self) -> Result<(), EngineError> {
         self.in_draw.store(true, Ordering::Relaxed);
-        let result = self.call("draw", false);
+        let result = self.call(Callback::Draw);
         self.in_draw.store(false, Ordering::Relaxed);
         result
     }
 
-    fn call(&self, name: &str, pass_dt: bool) -> Result<(), EngineError> {
+    fn call(&self, callback: Callback) -> Result<(), EngineError> {
         self.budget.store(0, Ordering::Relaxed);
+        let name = callback.name();
         let result = (|| -> mlua::Result<()> {
             let cb: Value = self.lua.globals().get(name)?;
             if cb.is_nil() {
@@ -122,10 +140,13 @@ impl ScriptHost {
             let func = cb.as_function().ok_or(mlua::Error::RuntimeError(format!(
                 "{name} deve ser uma função"
             )))?;
-            if pass_dt {
-                func.call::<()>(TICK_DT)?;
-            } else {
-                func.call::<()>(())?;
+            match callback {
+                Callback::Update => {
+                    func.call::<()>(TICK_DT)?;
+                }
+                Callback::Load | Callback::Draw => {
+                    func.call::<()>(())?;
+                }
             }
             Ok(())
         })();

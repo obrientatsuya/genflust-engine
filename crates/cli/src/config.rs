@@ -13,6 +13,51 @@ pub struct EngineConfig {
     pub palette: Option<String>,
     /// Cena TOML (`schema = 1`). Sem cena = cena implícita (só main.luau).
     pub scene: Option<String>,
+    /// Capacidades exigidas pelo projeto (ENG-01-05-S03). Precisam existir no
+    /// build; indisponível = erro com correção, nunca silêncio (R18).
+    #[serde(default)]
+    pub features: Vec<String>,
+}
+
+/// Capacidades previstas pelo doc (§3.3); nomes fora disso são erro.
+pub const KNOWN_FEATURES: &[&str] = &[
+    "window",
+    "audio",
+    "physics",
+    "animation",
+    "tilemap",
+    "juice",
+    "mcp",
+    "live",
+    "editor",
+];
+
+/// Capacidades compiladas nesta distribuição (fase 1: nenhuma opcional).
+pub const AVAILABLE_FEATURES: &[&str] = &[];
+
+impl EngineConfig {
+    /// Valida as capacidades declaradas contra o build atual.
+    pub fn validate_features(&self) -> Result<(), EngineError> {
+        for f in &self.features {
+            if !KNOWN_FEATURES.contains(&f.as_str()) {
+                return Err(EngineError::new(
+                    "E024",
+                    format!("capacidade desconhecida: {f}"),
+                    format!("use uma de: {}", KNOWN_FEATURES.join(", ")),
+                )
+                .at("engine.toml", 0));
+            }
+            if !AVAILABLE_FEATURES.contains(&f.as_str()) {
+                return Err(EngineError::new(
+                    "E025",
+                    format!("capacidade indisponível nesta distribuição: {f}"),
+                    format!("remova \"{f}\" de features ou rode um build com a feature {f}"),
+                )
+                .at("engine.toml", 0));
+            }
+        }
+        Ok(())
+    }
 }
 
 impl EngineConfig {

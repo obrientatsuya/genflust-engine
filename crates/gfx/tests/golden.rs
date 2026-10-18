@@ -126,6 +126,34 @@ fn scenes() -> Vec<(&'static str, Framebuffer)> {
         ),
     ));
 
+    // empate de ordem: dois sprites sobrepostos — o último comando vence,
+    // ordem estável por construção (ENG-01-15-S03)
+    out.push((
+        "spr_order_tie",
+        raster(
+            &[
+                Command::Clear { color: 0 },
+                Command::Spr {
+                    index: 0,
+                    x: 5,
+                    y: 5,
+                    flipx: false,
+                    flipy: false,
+                    label: None,
+                },
+                Command::Spr {
+                    index: 1,
+                    x: 6,
+                    y: 6,
+                    flipx: false,
+                    flipy: false,
+                    label: None,
+                },
+            ],
+            &[IndexedSprite::solid(3, 3, 3), IndexedSprite::solid(3, 3, 8)],
+        ),
+    ));
+
     out
 }
 
