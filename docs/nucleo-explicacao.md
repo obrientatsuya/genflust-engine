@@ -26,14 +26,14 @@ Um projeto é uma pasta com `engine.toml`, `main.luau`, `assets/` e `scenes/*.to
 | `cli` | Comandos `check`/`run`/`screenshot`, flags, exit codes, saída de erro |
 | `app` | Composition root: único lugar que junta as impls concretas (binário `engine`) |
 
-Direção de dependência: ferramentas → capacidades → núcleo → `api`. O `core` não conhece Luau nem gfx ([R4](../AGENTS.md#1-regras-duras-violou--rejeitar-a-mudanca)): o `app` injeta os passos do tick.
+Direção de dependência: ferramentas → capacidades → núcleo → `api`. O `core` não conhece Luau nem gfx ([R4](../AGENTS.md#1-regras-duras-violou--rejeitar-a-mudança)): o `app` injeta os passos do tick.
 
 ## Como um frame acontece
 
 ```
 barreira (aplica criações/remoções pendentes)
   → update(dt) [Luau + rnd]
-  → draw() [só emite comandos; ent.new/kill bloqueado aqui — R9](../AGENTS.md#1-regras-duras-violou--rejeitar-a-mudanca)
+  → draw() [só emite comandos; ent.new/kill bloqueado aqui — R9](../AGENTS.md#1-regras-duras-violou--rejeitar-a-mudança)
   → raster (comandos → framebuffer)
   → hash (FNV-1a) e, se pedido, PNG
 ```

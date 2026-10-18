@@ -37,7 +37,7 @@ Saídas esperadas:
 
 ```bash
 cargo test --workspace        # contratos do mundo + determinismo
-cargo xtask arch-check        # [R1](../AGENTS.md#1-regras-duras-violou--rejeitar-a-mudanca): nenhum arquivo >300 linhas
+cargo xtask arch-check        # [R1](../AGENTS.md#1-regras-duras-violou--rejeitar-a-mudança): nenhum arquivo >300 linhas
 cargo xtask token-budget
 ```
 
@@ -50,7 +50,7 @@ O CI roda exatamente isso em ubuntu-latest + windows-latest, mais `fmt --check` 
 | `E020` | rodou fora da pasta do projeto (sem `engine.toml`) | `cd` para a pasta do jogo |
 | `E050` | erro no `main.luau` (sintaxe ou runtime) | a mensagem aponta a linha; corrija e rode de novo |
 | `E010` | handle obsoleto (`ent.kill`/consulta após remoção) | use o handle do ciclo de vida atual |
-| `E016` | `ent.new`/`ent.kill` chamado em `draw()` | mova para `update()`/`load()` ([R9](../AGENTS.md#1-regras-duras-violou--rejeitar-a-mudanca)) |
+| `E016` | `ent.new`/`ent.kill` chamado em `draw()` | mova para `update()`/`load()` ([R9](../AGENTS.md#1-regras-duras-violou--rejeitar-a-mudança)) |
 | `E103` | não conseguiu gravar o PNG | verifique permissões do diretório de `--out` |
 
 Onde ficam os testes: `crates/ecs/tests/world.rs` (contratos do mundo) e `crates/cli/tests/determinism.rs` (mesma seed → mesmo hash).

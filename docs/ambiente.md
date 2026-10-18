@@ -46,7 +46,7 @@ cargo xtask token-budget
 - **LF em tudo** (`* text=auto eol=lf`): CRLF muda os bytes do arquivo → quebra o hash dos goldens e o diff dos TOML.
 - **`lower_snake_case` em asset/cena**: Windows ignora caixa, Linux não; dois nomes que diferem só por caixa colidem em um e não no outro. O `check` rejeita.
 - **Caminhos sempre com `/`**: separador válido nos dois SOs.
-- **Float via `libm`, sem fast-math, sem `-C target-cpu=native`**: mesmo resultado bit a bit nos dois ([R7](../AGENTS.md#1-regras-duras-violou--rejeitar-a-mudanca)); golden hashes commitados batem nos dois.
+- **Float via `libm`, sem fast-math, sem `-C target-cpu=native`**: mesmo resultado bit a bit nos dois ([R7](../AGENTS.md#1-regras-duras-violou--rejeitar-a-mudança)); golden hashes commitados batem nos dois.
 - **`Cargo.lock` versionado + toolchain fixa**: build reproduzível, mesmos warnings nos dois.
 - **mold/lld só em linux-gnu**: nunca afeta o Windows; opcional.
 - **Hot reload/editor: temporário + rename, debounce no watcher**: no Windows, arquivo aberto por outro processo trava a escrita.
