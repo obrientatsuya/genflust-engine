@@ -11,6 +11,9 @@ __pycache__/
 .rtk/
 skills-lock.json
 
+# Handoff local do dono (não versionado)
+docs/retomar.md
+
 # Rust
 target/
 out/
