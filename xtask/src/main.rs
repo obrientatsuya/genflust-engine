@@ -9,6 +9,8 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
+mod search;
+
 const MAX_LINES: usize = 300; // R1 (violação = falha)
 const TARGET_LINES: usize = 200; // R1 (alvo = aviso)
 const L0_TOKEN_BUDGET: usize = 3000; // AGENTS.md §6
@@ -20,6 +22,7 @@ fn main() -> ExitCode {
         Some("arch-check") => arch_check(),
         Some("token-budget") => token_budget(),
         Some("perf-budget") => perf_budget(args.collect()),
+        Some("search") => search::run(&args.collect::<Vec<String>>(), &root()),
         Some(other) => {
             eprintln!("comando desconhecido: {other}\n");
             usage();
@@ -33,7 +36,7 @@ fn main() -> ExitCode {
 }
 
 fn usage() {
-    eprintln!("uso: cargo xtask <arch-check|token-budget|perf-budget>");
+    eprintln!("uso: cargo xtask <arch-check|token-budget|perf-budget|search>");
 }
 
 /// Raiz do workspace: o diretório que contém o Cargo.toml raiz (pai do xtask).

@@ -1,0 +1,27 @@
+# GENFLUST ENGINE v0.1 — 320x180, paleta 32 cores, Luau (fase 1 aceita)
+# Callbacks globais: load() update(dt) draw() — draw() só emite comandos e NÃO altera a simulação
+# Rodar: engine check | engine run [--frames N] [--seed S] | engine screenshot [--out arquivo]
+# Projeto: engine.toml + main.luau + assets/*.png + scenes/*.toml (schema=1, [[entities]])
+# Saída do CLI é TOON: `chave: valor`; listas = `nome[N]{campos}:` + 1 linha por item
+# Determinismo: mesma seed = mesmo hash de frame; rnd é semeado, sem relógio de parede
+
+gfx.clear(c)                      limpa a tela com cor 0..31
+gfx.rect(x,y,w,h,c)               retângulo preenchido
+gfx.rectb(x,y,w,h,c)              contorno
+gfx.spr(nome,x,y,[flipx],[flipy]) sprite por nome; ausente = placeholder + rótulo
+gfx.text(s,x,y,c)                 texto (fonte 5x7 embutida)
+gfx.cam(x,y)                      desloca a câmera
+
+ent.new(tag,[x],[y]) -> e         cria entidade; ativa na barreira do próximo tick
+ent.each(tag) -> {e,...}          entidades ativas com a tag, ordem estável
+ent.kill(e)                       agenda remoção; o handle fica obsoleto (E010)
+
+rnd(n)                            inteiro 0..n-1, determinístico pela seed
+
+# Erros: `errors[N]{code,file,line,msg,fix}` — E010 handle obsoleto · E013 dependência de
+# componente · E016 mutação em draw() proibida · E020 sem engine.toml · E050 erro de script ·
+# E103 falha ao gravar PNG
+
+# NÃO implementado ainda (não invente): input.* · snd.* · scene.* · msg.* · evt.* · phys.* · juice.*
+# Docs: docs/retomar.md (handoff) · docs/nucleo-howto.md (rodar) · docs/nucleo-explicacao.md (como funciona) · docs/adr (decisões)
+# Fonte de verdade: ENGINE_VISION2.md (§N) · Regras: AGENTS.md (R1–R21, em conflito o doc vence)
