@@ -23,5 +23,5 @@ rnd(n)                            inteiro 0..n-1, determinístico pela seed
 # E103 falha ao gravar PNG
 
 # NÃO implementado ainda (não invente): input.* · snd.* · scene.* · msg.* · evt.* · phys.* · juice.*
-# Docs: docs/retomar.md (handoff) · docs/nucleo-howto.md (rodar) · docs/nucleo-explicacao.md (como funciona) · docs/adr (decisões)
+# Docs: docs/nucleo-howto.md (rodar) · docs/nucleo-explicacao.md (como funciona) · docs/adr (decisões) · docs/ambiente.md (setup)
 # Fonte de verdade: ENGINE_VISION2.md (§N) · Regras: AGENTS.md (R1–R21, em conflito o doc vence)

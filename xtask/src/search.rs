@@ -60,7 +60,7 @@ pub fn run(terms: &[String], root: &Path) -> std::process::ExitCode {
         println!("{r}");
     }
     if rows.is_empty() {
-        println!("  (nada encontrado; tente outros termos ou leia docs/retomar.md)");
+        println!("  (nada encontrado; tente outros termos ou leia llms.txt e docs/)");
     }
     std::process::ExitCode::SUCCESS
 }
