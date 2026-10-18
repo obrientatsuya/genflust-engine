@@ -35,6 +35,24 @@ impl From<EngineError> for ProjectError {
     }
 }
 
+/// Caminho de arquivo do projeto: relativo, sem escapar da raiz (ENG-01-05-S02).
+/// Absolutos e `..` são rejeitados com diagnóstico.
+pub fn project_path(root: &Path, rel: &str) -> Result<PathBuf, EngineError> {
+    let p = Path::new(rel);
+    let escapes = p.is_absolute()
+        || p.components()
+            .any(|c| matches!(c, std::path::Component::ParentDir));
+    if escapes {
+        return Err(EngineError::new(
+            "E023",
+            format!("caminho fora do projeto: {rel}"),
+            "use caminhos relativos dentro da pasta do projeto (sem .. nem absoluto)",
+        )
+        .at("engine.toml", 0));
+    }
+    Ok(root.join(p))
+}
+
 pub struct Project {
     pub root: PathBuf,
     pub config: EngineConfig,
@@ -50,6 +68,8 @@ pub struct Project {
     pub commands: Arc<Mutex<Vec<Command>>>,
     /// Hash do último frame rasterizado (contrato de replay, R7).
     pub frame_hash: u64,
+    /// Fases do último tick, na ordem executada (trace de um tick).
+    pub trace: Vec<&'static str>,
     pub seed: u64,
 }
 
@@ -59,7 +79,7 @@ impl Project {
         let config = EngineConfig::load(root)?;
 
         let palette = match &config.palette {
-            Some(p) => Palette::load(&root.join(p))?,
+            Some(p) => Palette::load(&project_path(root, p)?)?,
             None => Palette::default(),
         };
 
@@ -74,14 +94,14 @@ impl Project {
 
         let world = Arc::new(Mutex::new(World::new()));
         if let Some(scene_path) = &config.scene {
-            let scene = Scene::load(&root.join(scene_path))?;
+            let scene = Scene::load(&project_path(root, scene_path)?)?;
             scene.mount(&mut world.lock().expect("poisoned"))?;
         }
 
         let rng = Arc::new(Mutex::new(Rng::new(seed)));
         let commands: Arc<Mutex<Vec<Command>>> = Arc::new(Mutex::new(Vec::new()));
         let registry = Arc::new(Mutex::new(registry));
-        let in_draw = Arc::new(Mutex::new(false));
+        let in_draw = Arc::new(std::sync::atomic::AtomicBool::new(false));
 
         let main = root.join("main.luau");
         let host = Rc::new(ScriptHost::new(
@@ -121,22 +141,28 @@ impl Project {
             raster: Raster::new(),
             commands,
             frame_hash: 0,
+            trace: Vec::new(),
             seed,
         })
     }
 
     /// `load()` + N frames + raster + hash (contrato de replay, R7).
+    /// `trace` registra as fases do último tick, na ordem executada.
     pub fn run_frames(&mut self, frames: u64) -> Result<(), EngineError> {
         self.host.call_load()?;
         for _ in 0..frames {
+            self.trace.clear();
+            self.trace.push("barrier");
             self.world.lock().expect("poisoned").barrier();
-            self.tick.frame()?;
+            self.tick.frame(&mut self.trace)?;
+            self.trace.push("raster");
             {
                 let commands = self.commands.lock().expect("poisoned");
                 let registry = self.registry.lock().expect("poisoned");
                 self.raster
                     .exec(&commands, registry.sprites(), &mut self.framebuffer);
             }
+            self.trace.push("hash");
             self.frame_hash = gfx::frame_hash(&self.framebuffer);
             self.clock.advance();
         }

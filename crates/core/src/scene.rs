@@ -79,7 +79,45 @@ impl Scene {
                 "use schema = 1",
             ));
         }
+        // Valida ANTES de qualquer mutação: carga que falha não deixa a cena
+        // parcialmente construída (ENG-01-09-S04).
+        scene.validate().map_err(|e| {
+            let mut e = e;
+            e.file = path.display().to_string();
+            e
+        })?;
         Ok(scene)
+    }
+
+    /// Validação prévia da cena: chaves únicas/não vazias e dependências de
+    /// componente. Erro = nada é montado.
+    pub fn validate(&self) -> Result<(), EngineError> {
+        let mut seen: Vec<&str> = Vec::new();
+        for entity in &self.entities {
+            if entity.key.trim().is_empty() {
+                return Err(EngineError::new(
+                    "E014",
+                    "entidade de cena sem key",
+                    "toda entidade precisa de uma key única",
+                ));
+            }
+            if seen.contains(&entity.key.as_str()) {
+                return Err(EngineError::new(
+                    "E014",
+                    format!("chave duplicada na cena: {}", entity.key),
+                    "keys de entidade são únicas na cena",
+                ));
+            }
+            seen.push(&entity.key);
+            if entity.components.sprite.is_some() && entity.components.transform.is_none() {
+                return Err(EngineError::new(
+                    "E013",
+                    format!("entidade {}: Sprite exige Transform", entity.key),
+                    "adicione [entities.components.transform] à entidade",
+                ));
+            }
+        }
+        Ok(())
     }
 
     /// Monta a cena no mundo ANTES do primeiro tick (§3.2: `load()` conclui a
@@ -155,5 +193,46 @@ asset = "x"
         .unwrap();
         let mut w = World::new();
         assert!(scene.mount(&mut w).is_err());
+    }
+
+    #[test]
+    fn duplicate_key_rejected_before_mutation() {
+        let scene: Scene = toml::from_str(
+            r#"
+schema = 1
+[[entities]]
+key = "a"
+[[entities]]
+key = "a"
+"#,
+        )
+        .unwrap();
+        let err = scene.validate().unwrap_err();
+        assert_eq!(err.code, "E014");
+        // Nada foi montado: validação é prévia à mutação.
+        let w = World::new();
+        assert_eq!(w.active().len(), 0);
+    }
+
+    #[test]
+    fn validate_accepts_minimal_scene() {
+        let scene: Scene = toml::from_str("schema = 1\n[[entities]]\nkey = \"solo\"\n").unwrap();
+        assert!(scene.validate().is_ok());
+    }
+
+    #[test]
+    fn load_attaches_file_location_to_error() {
+        let dir = std::env::temp_dir().join(format!("genflust-scene-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("dup.toml");
+        std::fs::write(
+            &path,
+            "schema = 1\n[[entities]]\nkey = \"a\"\n[[entities]]\nkey = \"a\"\n",
+        )
+        .unwrap();
+        let err = Scene::load(&path).unwrap_err();
+        assert_eq!(err.code, "E014");
+        assert!(err.file.contains("dup.toml"));
+        std::fs::remove_dir_all(&dir).ok();
     }
 }

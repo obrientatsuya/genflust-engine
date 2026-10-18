@@ -1,0 +1,5 @@
+# Fixtures golden do raster (fase 1). hash FNV-1a 64 do framebuffer, hex.
+clear_7=b4c84c83f5468025
+rect_borders=7794b0fdd0ae0c2e
+spr_flip_overlap=d123c02b01f4cdde
+placeholder_player_idle=9b4dcad2dae754f2

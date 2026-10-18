@@ -12,6 +12,9 @@ use gfx::{IndexedSprite, Palette};
 pub struct Registry {
     sprites: Vec<IndexedSprite>,
     names: HashMap<String, u32>,
+    /// Placeholder por nome ausente: resolvido UMA vez, reusado depois
+    /// (loop de gameplay não reconverte/cria placeholder por frame).
+    placeholders: HashMap<String, u32>,
 }
 
 impl Registry {
@@ -25,14 +28,19 @@ impl Registry {
     }
 
     /// Índice real ou de placeholder: nome ausente NUNCA é erro silencioso
-    /// (R18) — devolve placeholder + o nome para rótulo (§4.8).
+    /// (R18) — devolve placeholder + o nome para rótulo (§4.8). O placeholder
+    /// de um nome é criado uma vez e reusado (índice estável entre frames).
     pub fn resolve_or_placeholder(&mut self, name: &str) -> (u32, Option<String>) {
         if let Some(i) = self.resolve(name) {
             return (i, None);
         }
+        if let Some(i) = self.placeholders.get(name) {
+            return (*i, Some(name.to_string()));
+        }
         let sprite = IndexedSprite::placeholder8(name);
         let index = self.sprites.len() as u32;
         self.sprites.push(sprite);
+        self.placeholders.insert(name.to_string(), index);
         (index, Some(name.to_string()))
     }
 
@@ -92,7 +100,12 @@ impl Registry {
 }
 
 /// PNG RGBA → sprite indexado pela paleta (aproximação por cor mais próxima).
+/// Erros sempre apontam o arquivo (R13).
 pub fn load_png(path: &Path, palette: &Palette) -> Result<IndexedSprite, EngineError> {
+    load_png_inner(path, palette).map_err(|e| e.at(path.display().to_string(), 0))
+}
+
+fn load_png_inner(path: &Path, palette: &Palette) -> Result<IndexedSprite, EngineError> {
     let file = std::fs::File::open(path).map_err(|e| {
         EngineError::new(
             "E100",

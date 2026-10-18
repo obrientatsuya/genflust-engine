@@ -77,3 +77,47 @@ fn duplicate_key_rejected() {
         Err(ComponentError::DuplicateKey("porta".into()))
     );
 }
+
+#[test]
+fn kill_pending_cancels_spawn_at_barrier() {
+    let mut w = World::new();
+    let e = w.spawn("spark", None, None);
+    // Matar ainda pendente cancela a criação na mesma fila de barreira.
+    w.kill(e).unwrap();
+    w.barrier();
+    assert_eq!(w.lifecycle(e), Err(ComponentError::Stale));
+    assert!(w.by_tag("spark").is_empty());
+}
+
+#[test]
+fn invalid_batch_leaves_no_partial_state() {
+    let mut w = World::new();
+    let alive = w.spawn("alive", None, None);
+    w.barrier();
+
+    // Lote inválido: handle obsoleto + componente sem dependência.
+    let stale = {
+        let tmp = w.spawn("tmp", None, None);
+        w.barrier();
+        w.kill(tmp).unwrap();
+        w.barrier();
+        tmp
+    };
+    assert!(w.kill(stale).is_err(), "handle obsoleto rejeitado");
+    assert!(
+        w.add_sprite(stale, Sprite { asset: "x".into() }).is_err(),
+        "obsoleto nunca registra componente"
+    );
+    assert_eq!(
+        w.add_sprite(alive, Sprite { asset: "x".into() }),
+        Err(ComponentError::Dependency {
+            component: "Sprite",
+            required: "Transform"
+        })
+    );
+    // Montar o Transform e tentar de novo funciona: a falha não corrompeu nada.
+    w.add_transform(alive, Transform::default()).unwrap();
+    w.add_sprite(alive, Sprite { asset: "x".into() }).unwrap();
+    w.barrier();
+    assert_eq!(w.sprite(alive).unwrap().asset, "x");
+}

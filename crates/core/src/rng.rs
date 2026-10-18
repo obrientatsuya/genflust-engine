@@ -46,6 +46,17 @@ impl Rng {
         }
         self.next_u64() % n
     }
+
+    /// Estado atual, para snapshot: restaurar retoma a sequência do ponto
+    /// salvo (contrato de replay, §3.9).
+    pub fn state(&self) -> [u64; 4] {
+        self.state
+    }
+
+    /// Reconstrói o RNG de um estado salvo (`state()`).
+    pub fn from_state(state: [u64; 4]) -> Self {
+        Self { state }
+    }
 }
 
 #[cfg(test)]
@@ -66,5 +77,22 @@ mod tests {
         let mut a = Rng::new(1);
         let mut b = Rng::new(2);
         assert_ne!(a.next_u64(), b.next_u64());
+    }
+
+    #[test]
+    fn state_restore_resumes_sequence() {
+        let mut a = Rng::new(42);
+        let _ = a.next_u64();
+        let saved = a.state();
+        let expected = [a.next_u64(), a.next_u64(), a.next_u64()];
+        let mut restored = Rng::from_state(saved);
+        assert_eq!(
+            [
+                restored.next_u64(),
+                restored.next_u64(),
+                restored.next_u64()
+            ],
+            expected
+        );
     }
 }

@@ -47,12 +47,15 @@ impl Tick {
         self.draw = Some(f);
     }
 
-    /// Executa um frame completo, na ordem fixa do contrato.
-    pub fn frame(&mut self) -> Result<(), EngineError> {
+    /// Executa um frame completo, na ordem fixa do contrato, registrando as
+    /// fases em `trace` (observabilidade §3.9: trace de um tick).
+    pub fn frame(&mut self, trace: &mut Vec<&'static str>) -> Result<(), EngineError> {
         if let Some(update) = &self.update {
+            trace.push("update");
             (update.borrow_mut())()?;
         }
         if let Some(draw) = &self.draw {
+            trace.push("draw");
             (draw.borrow_mut())()?;
         }
         Ok(())

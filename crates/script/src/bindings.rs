@@ -4,6 +4,7 @@
 //! binding carregam `code`/`msg` estruturados (R13) e a guarda R9 bloqueia
 //! mutação de mundo dentro de `draw()`.
 
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
 use api::{Command, EngineError};
@@ -19,7 +20,7 @@ pub fn install(
     commands: Arc<Mutex<Vec<Command>>>,
     registry: Arc<Mutex<Registry>>,
     last_error: Arc<Mutex<Option<EngineError>>>,
-    in_draw: Arc<Mutex<bool>>,
+    in_draw: Arc<AtomicBool>,
 ) -> Result<()> {
     let globals = lua.globals();
 
@@ -30,7 +31,7 @@ pub fn install(
         let last_error = last_error.clone();
         let new =
             lua.create_function(move |_, (tag, x, y): (String, Option<f32>, Option<f32>)| {
-                if *in_draw.lock().expect("poisoned") {
+                if in_draw.load(Ordering::Relaxed) {
                     return Err(guarded(
                         &last_error,
                         "E016",
@@ -60,7 +61,7 @@ pub fn install(
         let in_draw = in_draw.clone();
         let last_error = last_error.clone();
         let kill = lua.create_function(move |_, raw: u64| {
-            if *in_draw.lock().expect("poisoned") {
+            if in_draw.load(Ordering::Relaxed) {
                 return Err(guarded(
                     &last_error,
                     "E016",

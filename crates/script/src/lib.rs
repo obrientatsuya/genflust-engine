@@ -8,7 +8,7 @@
 mod bindings;
 
 use std::path::Path;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
 use api::{Command, EngineError, TICK_DT};
@@ -27,8 +27,9 @@ pub struct ScriptHost {
     last_error: Arc<Mutex<Option<EngineError>>>,
     /// Contador de interrupções do callback em execução.
     budget: Arc<AtomicU64>,
-    /// Guarda de R9: draw() não pode alterar a simulação.
-    in_draw: Arc<Mutex<bool>>,
+    /// Guarda de R9: draw() não pode alterar a simulação (atômico: os
+    /// bindings leem durante o callback, sem lock reentrante).
+    in_draw: Arc<AtomicBool>,
 }
 
 impl ScriptHost {
@@ -40,7 +41,7 @@ impl ScriptHost {
         rng: Arc<Mutex<Rng>>,
         commands: Arc<Mutex<Vec<Command>>>,
         registry: Arc<Mutex<Registry>>,
-        in_draw: Arc<Mutex<bool>>,
+        in_draw: Arc<AtomicBool>,
     ) -> Result<Self, EngineError> {
         let lua = Lua::new();
         lua.sandbox(true)
@@ -105,10 +106,9 @@ impl ScriptHost {
     /// `draw()`: só gera comandos visuais; ent.* que altera o mundo é
     /// rejeitado pela guarda R9.
     pub fn call_draw(&self) -> Result<(), EngineError> {
-        let mut guard = self.in_draw.lock().expect("poisoned");
-        *guard = true;
+        self.in_draw.store(true, Ordering::Relaxed);
         let result = self.call("draw", false);
-        *guard = false;
+        self.in_draw.store(false, Ordering::Relaxed);
         result
     }
 

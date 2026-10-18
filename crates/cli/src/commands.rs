@@ -89,7 +89,8 @@ fn check(root: &Path, fmt: &dyn Formatter) -> Result<i32, EngineError> {
                 ]
             })
             .collect();
-        print!(
+        // Erros vão para stderr (R13); avisos e "ok" ficam no stdout.
+        eprint!(
             "{}",
             fmt.format(
                 "errors",
