@@ -57,8 +57,9 @@ impl Registry {
         self.names.keys().map(|s| s.as_str())
     }
 
-    /// Carrega `assets/*.png` de um diretório; erro estruturado por arquivo
-    /// corrompido (ENG-01-13-S04), nunca silencioso.
+    /// Carrega `assets/*.png` de um diretório. Devolve **todos** os erros por
+    /// arquivo (corrompido/ilegível) — o chamador decide agregar (check) ou
+    /// falhar no primeiro (runtime). Erro de `Result` = falha ao ler o diretório.
     pub fn load_dir(
         &mut self,
         dir: &Path,

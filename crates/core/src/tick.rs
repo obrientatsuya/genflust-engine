@@ -10,12 +10,10 @@
 //!
 //! Os passos 3/5 são injetados pelo `app` (o core não importa backends, R4).
 
-use std::cell::RefCell;
-use std::rc::Rc;
-
 use api::EngineError;
 
-pub type Step = Rc<RefCell<dyn FnMut() -> Result<(), EngineError>>>;
+/// Passo do tick: fechado sobre o que precisa (host, fila), sem compartilhar.
+pub type Step = Box<dyn FnMut() -> Result<(), EngineError>>;
 
 /// Estrutura do tick: passos opcionais injetados na ordem do contrato.
 pub struct Tick {
@@ -50,13 +48,13 @@ impl Tick {
     /// Executa um frame completo, na ordem fixa do contrato, registrando as
     /// fases em `trace` (observabilidade §3.9: trace de um tick).
     pub fn frame(&mut self, trace: &mut Vec<&'static str>) -> Result<(), EngineError> {
-        if let Some(update) = &self.update {
+        if let Some(update) = &mut self.update {
             trace.push("update");
-            (update.borrow_mut())()?;
+            update()?;
         }
-        if let Some(draw) = &self.draw {
+        if let Some(draw) = &mut self.draw {
             trace.push("draw");
-            (draw.borrow_mut())()?;
+            draw()?;
         }
         Ok(())
     }

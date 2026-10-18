@@ -48,10 +48,9 @@ impl Raster {
                     label,
                 } => {
                     // Sprite vem SEMPRE do registro (inclui placeholders);
-                    // o rótulo é só texto, sem recriar sprite no hot path.
+                    // empréstimo direto: zero alocação por comando (R6).
                     if let Some(sprite) = sprites.get(*index as usize) {
-                        let sprite = sprite.clone();
-                        self.spr(fb, &sprite, x - self.cam_x, y - self.cam_y, *flipx, *flipy);
+                        self.spr(fb, sprite, x - self.cam_x, y - self.cam_y, *flipx, *flipy);
                     }
                     if let Some(name) = label {
                         crate::draw_text(fb, name, x - self.cam_x + 2, y - self.cam_y + 2, 1);

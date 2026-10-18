@@ -13,9 +13,16 @@ fn usage() {
     );
 }
 
+/// Uso inválido nunca vira valor silencioso (R18): erro + exit 2.
+fn usage_error(msg: &str) -> ExitCode {
+    eprintln!("{msg}");
+    usage();
+    ExitCode::from(2)
+}
+
 fn main() -> ExitCode {
     let mut args = env::args().skip(1);
-    let mut command = None;
+    let mut command: Option<String> = None;
     let mut format = String::from("toon");
     let mut seed = DEFAULT_SEED;
     let mut frames = 1u64;
@@ -24,40 +31,42 @@ fn main() -> ExitCode {
     while let Some(arg) = args.next() {
         match arg.as_str() {
             "run" | "check" | "screenshot" => command = Some(arg),
-            "--format" => {
-                if let Some(v) = args.next() {
-                    format = v;
-                }
-            }
-            "--seed" => {
-                if let Some(v) = args.next() {
-                    seed = v.parse().unwrap_or(DEFAULT_SEED);
-                }
-            }
-            "--frames" => {
-                if let Some(v) = args.next() {
-                    frames = v.parse().unwrap_or(1).max(1);
-                }
-            }
-            "--out" => {
-                if let Some(v) = args.next() {
-                    out = PathBuf::from(v);
-                }
-            }
-            other => {
-                eprintln!("flag desconhecida: {other}");
-                usage();
-                return ExitCode::from(2);
-            }
+            "--format" => match args.next().as_deref() {
+                Some("toon") => format = "toon".into(),
+                Some("json") => format = "json".into(),
+                Some(other) => return usage_error(&format!("--format inválido: {other}")),
+                None => return usage_error("--format exige um valor"),
+            },
+            "--seed" => match args.next() {
+                Some(v) => match v.parse() {
+                    Ok(s) => seed = s,
+                    Err(_) => return usage_error(&format!("--seed inválido: {v}")),
+                },
+                None => return usage_error("--seed exige um valor"),
+            },
+            "--frames" => match args.next() {
+                Some(v) => match v.parse::<u64>() {
+                    Ok(n) if n >= 1 => frames = n,
+                    _ => return usage_error(&format!("--frames inválido: {v}")),
+                },
+                None => return usage_error("--frames exige um valor"),
+            },
+            "--out" => match args.next() {
+                Some(v) => out = PathBuf::from(v),
+                None => return usage_error("--out exige um valor"),
+            },
+            other => return usage_error(&format!("flag desconhecida: {other}")),
         }
     }
 
     let Some(cmd) = command else {
-        usage();
-        return ExitCode::from(2);
+        return usage_error("falta o comando");
     };
 
-    let root = env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+    let root = match env::current_dir() {
+        Ok(p) => p,
+        Err(e) => return usage_error(&format!("não consegui obter o diretório atual: {e}")),
+    };
     let command = match cmd.as_str() {
         "run" => cli::Command::Run,
         "check" => cli::Command::Check,

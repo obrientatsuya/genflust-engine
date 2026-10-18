@@ -92,6 +92,31 @@ fn corrupt_asset_is_effective_error_not_silence() {
 }
 
 #[test]
+fn check_aggregates_all_corrupt_assets() {
+    let dir = scratch("corrupt2");
+    std::fs::write(dir.join("engine.toml"), "name = \"corrupt2\"\n").unwrap();
+    std::fs::write(dir.join("main.luau"), "function update(dt) end\n").unwrap();
+    std::fs::create_dir_all(dir.join("assets")).unwrap();
+    std::fs::write(dir.join("assets/bad1.png"), b"nao e png").unwrap();
+    std::fs::write(dir.join("assets/bad2.png"), b"tambem nao").unwrap();
+
+    let out = Command::new(engine())
+        .args(["check"])
+        .current_dir(&dir)
+        .output()
+        .unwrap();
+    assert_eq!(out.status.code(), Some(1));
+    let err = String::from_utf8_lossy(&out.stderr);
+    // O diagnóstico agrega TODOS os arquivos, não só o primeiro (T1).
+    assert!(err.contains("errors[2]"), "esperado errors[2]: {err}");
+    assert!(
+        err.contains("bad1.png") && err.contains("bad2.png"),
+        "os dois no diagnóstico: {err}"
+    );
+    std::fs::remove_dir_all(&dir).ok();
+}
+
+#[test]
 fn script_syntax_error_is_effective_error() {
     let dir = scratch("scripterr");
     std::fs::write(dir.join("engine.toml"), "name = \"scripterr\"\n").unwrap();

@@ -52,13 +52,19 @@ fn check(root: &Path, fmt: &dyn Formatter) -> Result<i32, EngineError> {
     let mut errors: Vec<EngineError> = Vec::new();
     let mut missing: Vec<String> = Vec::new();
 
-    // Config e cena usam o mesmo carregador/validador do runtime (R15).
+    // 1) Assets: agrega TODOS os erros por arquivo (o runtime falha no
+    //    primeiro; aqui o diagnóstico é completo — ENG-01-17-S02).
+    errors.extend(asset_errors(root));
+
+    // 2) Config, cena e script usam o mesmo carregador/validador do runtime (R15).
     match Project::build(root, DEFAULT_SEED) {
         Ok(project) => {
             errors.extend(validate_world(&project.world.lock().expect("poisoned")));
             missing = missing_assets(&project);
         }
-        Err(e) => errors.push(e),
+        // E100 já foi agregado acima (todos, não só o primeiro) — evita duplicar.
+        Err(e) if e.code != "E100" => errors.push(e),
+        Err(_) => {}
     }
 
     if !errors.is_empty() {
@@ -75,7 +81,7 @@ fn check(root: &Path, fmt: &dyn Formatter) -> Result<i32, EngineError> {
             })
             .collect();
         // Erros vão para stderr (R13); avisos e "ok" ficam no stdout.
-        eprint!("{}", fmt.format("errors", &errors_value(rows)));
+        eprint!("{}", fmt.format("errors", &crate::errors_value(rows)));
         return Ok(1);
     }
 
@@ -92,6 +98,26 @@ fn check(root: &Path, fmt: &dyn Formatter) -> Result<i32, EngineError> {
     Ok(0)
 }
 
+/// Todos os erros de arquivo em `assets/` (não para no primeiro) — R18: o
+/// diagnóstico nunca esconde problemas além do primeiro (T1).
+fn asset_errors(root: &Path) -> Vec<EngineError> {
+    let assets_dir = root.join("assets");
+    if !assets_dir.is_dir() {
+        return Vec::new();
+    }
+    let palette = crate::EngineConfig::load(root)
+        .ok()
+        .and_then(|c| c.palette)
+        .and_then(|p| crate::project::project_path(root, &p).ok())
+        .and_then(|p| gfx::Palette::load(&p).ok())
+        .unwrap_or_default();
+    let mut registry = assets::Registry::new();
+    match registry.load_dir(&assets_dir, &palette) {
+        Ok(file_errors) => file_errors,
+        Err(e) => vec![e],
+    }
+}
+
 /// Nomes de sprite da cena sem arte (viram placeholder, §4.8).
 fn missing_assets(project: &Project) -> Vec<String> {
     let registry = project.registry.lock().expect("poisoned");
@@ -103,11 +129,4 @@ fn missing_assets(project: &Project) -> Vec<String> {
         .filter(|s| registry.resolve(&s.asset).is_none())
         .map(|s| s.asset.clone())
         .collect()
-}
-
-fn errors_value(rows: Vec<Vec<Value>>) -> Value {
-    let fields = ["code", "file", "line", "msg", "fix"]
-        .map(str::to_string)
-        .to_vec();
-    Value::table(fields, rows)
 }

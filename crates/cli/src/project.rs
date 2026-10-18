@@ -1,7 +1,6 @@
 //! Projeto carregado: composition root das capacidades (ENGINE_VISION2
 //! §3.3 — só o `app` conhece impls concretas; aqui elas ficam reunidas).
 
-use std::cell::RefCell;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
@@ -37,23 +36,19 @@ pub fn project_path(root: &Path, rel: &str) -> Result<PathBuf, EngineError> {
 }
 
 pub struct Project {
-    pub root: PathBuf,
-    pub config: EngineConfig,
-    pub palette: Palette,
+    palette: Palette,
     pub world: Arc<Mutex<World>>,
-    pub rng: Arc<Mutex<Rng>>,
     pub registry: Arc<Mutex<Registry>>,
-    pub host: Rc<ScriptHost>,
+    host: Rc<ScriptHost>,
     pub clock: Clock,
-    pub tick: Tick,
-    pub framebuffer: Framebuffer,
-    pub raster: Raster,
-    pub commands: Arc<Mutex<Vec<Command>>>,
+    tick: Tick,
+    framebuffer: Framebuffer,
+    raster: Raster,
+    commands: Arc<Mutex<Vec<Command>>>,
     /// Hash do último frame rasterizado (contrato de replay, R7).
     pub frame_hash: u64,
     /// Fases do último tick, na ordem executada (trace de um tick).
     pub trace: Vec<&'static str>,
-    pub seed: u64,
 }
 
 impl Project {
@@ -67,56 +62,27 @@ impl Project {
             None => Palette::default(),
         };
 
-        let mut registry = Registry::new();
-        let assets_dir = root.join("assets");
-        if assets_dir.is_dir() {
-            let errors = registry.load_dir(&assets_dir, &palette)?;
-            if let Some(e) = errors.into_iter().next() {
-                return Err(e);
-            }
-        }
-
-        let world = Arc::new(Mutex::new(World::new()));
-        if let Some(scene_path) = &config.scene {
-            let scene = Scene::load(&project_path(root, scene_path)?)?;
-            scene.mount(&mut world.lock().expect("poisoned"))?;
-        }
+        let world = mount_scene(root, &config)?;
+        let registry = load_assets(root, &palette)?;
 
         let rng = Arc::new(Mutex::new(Rng::new(seed)));
         let commands: Arc<Mutex<Vec<Command>>> = Arc::new(Mutex::new(Vec::new()));
         let registry = Arc::new(Mutex::new(registry));
         let in_draw = Arc::new(std::sync::atomic::AtomicBool::new(false));
 
-        let main = root.join("main.luau");
         let host = Rc::new(ScriptHost::new(
-            &main,
+            &root.join("main.luau"),
             world.clone(),
             rng.clone(),
             commands.clone(),
             registry.clone(),
-            in_draw.clone(),
+            in_draw,
         )?);
-
-        let mut tick = Tick::new();
-        {
-            let host = host.clone();
-            tick.set_update(Rc::new(RefCell::new(move || host.call_update())));
-        }
-        {
-            let host = host.clone();
-            let commands = commands.clone();
-            tick.set_draw(Rc::new(RefCell::new(move || {
-                commands.lock().expect("poisoned").clear();
-                host.call_draw()
-            })));
-        }
+        let tick = wire_tick(&host, &commands);
 
         Ok(Self {
-            root: root.to_path_buf(),
-            config,
             palette,
             world,
-            rng,
             registry,
             host,
             clock: Clock::new(),
@@ -126,7 +92,6 @@ impl Project {
             commands,
             frame_hash: 0,
             trace: Vec::new(),
-            seed,
         })
     }
 
@@ -169,6 +134,49 @@ impl Project {
         }
         gfx::write_png(&self.framebuffer, &self.palette, out)
     }
+}
+
+/// Carrega a cena (se houver) ANTES do primeiro tick; sem cena = implícita.
+fn mount_scene(root: &Path, config: &EngineConfig) -> Result<Arc<Mutex<World>>, EngineError> {
+    let world = Arc::new(Mutex::new(World::new()));
+    if let Some(scene_path) = &config.scene {
+        let path = project_path(root, scene_path)?;
+        let scene = Scene::load(&path)?;
+        scene.mount(&mut world.lock().expect("poisoned"), &path)?;
+    }
+    Ok(world)
+}
+
+/// Carrega `assets/*.png` para o runtime: falha no PRIMEIRO asset com problema
+/// (fail fast); o diagnóstico completo de todos fica com o `check` (T1).
+fn load_assets(root: &Path, palette: &Palette) -> Result<Registry, EngineError> {
+    let mut registry = Registry::new();
+    let assets_dir = root.join("assets");
+    if assets_dir.is_dir() {
+        let errors = registry.load_dir(&assets_dir, palette)?;
+        if let Some(e) = errors.into_iter().next() {
+            return Err(e);
+        }
+    }
+    Ok(registry)
+}
+
+/// Liga os callbacks de update/draw ao tick (o core não conhece Luau, R4).
+fn wire_tick(host: &Rc<ScriptHost>, commands: &Arc<Mutex<Vec<Command>>>) -> Tick {
+    let mut tick = Tick::new();
+    {
+        let host = host.clone();
+        tick.set_update(Box::new(move || host.call_update()));
+    }
+    {
+        let host = host.clone();
+        let commands = commands.clone();
+        tick.set_draw(Box::new(move || {
+            commands.lock().expect("poisoned").clear();
+            host.call_draw()
+        }));
+    }
+    tick
 }
 
 /// Validação rápida sem simular (usada por `check`).

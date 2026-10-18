@@ -121,15 +121,19 @@ impl Scene {
     }
 
     /// Monta a cena no mundo ANTES do primeiro tick (§3.2: `load()` conclui a
-    /// montagem inicial). Keys duplicadas e dependências de componente são
-    /// erros de carga, nunca silenciosos (R18).
-    pub fn mount(&self, world: &mut World) -> Result<(), EngineError> {
+    /// montagem inicial). `validate()` já garantiu chaves/dependências; aqui o
+    /// único erro possível carrega o arquivo de origem real.
+    pub fn mount(&self, world: &mut World, source: &Path) -> Result<(), EngineError> {
+        let file = source.display().to_string();
+        let fail = |e: ecs::ComponentError, id: ecs::EntityId| {
+            ecs::to_engine_error(e, id).at(file.clone(), 0)
+        };
         for entity in &self.entities {
             let id = world.spawn(entity.tags.first().cloned().unwrap_or_default(), None, None);
             if let Some(t) = &entity.components.transform {
                 world
                     .add_transform(id, Transform { x: t.x, y: t.y })
-                    .map_err(|e| ecs::to_engine_error(e, id).at("scene.toml", 0))?;
+                    .map_err(|e| fail(e, id))?;
             }
             if let Some(s) = &entity.components.sprite {
                 world
@@ -139,11 +143,9 @@ impl Scene {
                             asset: s.asset.clone(),
                         },
                     )
-                    .map_err(|e| ecs::to_engine_error(e, id).at("scene.toml", 0))?;
+                    .map_err(|e| fail(e, id))?;
             }
-            world
-                .set_name(id, &entity.key)
-                .map_err(|e| ecs::to_engine_error(e, id).at("scene.toml", 0))?;
+            world.set_name(id, &entity.key).map_err(|e| fail(e, id))?;
         }
         world.barrier();
         Ok(())
@@ -172,7 +174,7 @@ asset = "player_idle"
     fn loads_and_mounts() {
         let scene: Scene = toml::from_str(SCENE).unwrap();
         let mut w = World::new();
-        scene.mount(&mut w).unwrap();
+        scene.mount(&mut w, Path::new("scene.toml")).unwrap();
         let e = w.resolve("player").unwrap();
         assert_eq!(w.transform(e).unwrap().x, 48.0);
         assert_eq!(w.sprite(e).unwrap().asset, "player_idle");
@@ -192,7 +194,7 @@ asset = "x"
         )
         .unwrap();
         let mut w = World::new();
-        assert!(scene.mount(&mut w).is_err());
+        assert!(scene.mount(&mut w, Path::new("scene.toml")).is_err());
     }
 
     #[test]
