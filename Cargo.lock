@@ -80,8 +80,10 @@ dependencies = [
  "fmt-json",
  "fmt-toon",
  "gfx",
+ "png",
  "script",
  "serde",
+ "serde_json",
  "toml",
 ]
 
@@ -109,6 +111,8 @@ name = "ecs"
 version = "0.1.0"
 dependencies = [
  "api",
+ "serde",
+ "toml",
 ]
 
 [[package]]
