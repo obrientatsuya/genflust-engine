@@ -41,7 +41,7 @@ jobs:
       - name: Token budget
         run: cargo xtask token-budget
 
-  # Prova o mundo Fedora (dnf/g++ em vez de apt) num container; o amigo
+  # Prova o mundo Fedora (dnf/g++ em vez de apt) num container; o Taylor
   # desenvolve no Fedora e nunca deve ficar de fora do "árbitro".
   fedora:
     runs-on: ubuntu-latest

@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       machine:
-        description: 'Máquina declarada (ex.: dev-luiz-win11, dev-amigo-ubuntu)'
+        description: 'Máquina declarada (ex.: dev-luiz-win11, dev-taylor-fedora)'
         required: true
 
 jobs:

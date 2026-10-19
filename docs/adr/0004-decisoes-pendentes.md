@@ -54,6 +54,6 @@ o resultado. Não congelar antes de medir ([R19](../../AGENTS.md#1-regras-duras-
 ## H6. Mold/lld como linker de dev no Linux
 
 - **Hipótese:** mold encurta link em dev sem afetar Windows ([§3.6-G](../../ENGINE_VISION2.md#36-performance-extremamente-veloz)).
-- **Experimento:** linkar o workspace com/sem mold na máquina do amigo.
+- **Experimento:** linkar o workspace com/sem mold na máquina do Taylor.
 - **Critério:** ganho de tempo no link dev; opcional — nunca no CI de golden
   hashes (não muda o binário, mas não arriscar variância).
