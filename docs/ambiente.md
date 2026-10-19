@@ -16,12 +16,23 @@ git config --global core.autocrlf false   # o .gitattributes manda o LF
 
 ## Setup — Linux
 
+O runtime headless precisa só de **compilador C++ + make** (o `mlua` compila o Luau vendored). X11/Wayland/ALSA e `pkg-config` **não** são necessários hoje.
+
+**Debian/Ubuntu**
 ```bash
+sudo apt install build-essential
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-sudo apt install build-essential pkg-config   # mold é opcional
 ```
 
-- X11/Wayland/ALSA só entram com as features `window`/`audio`; headless não precisa de nada disso.
+**Fedora**
+```bash
+sudo dnf install gcc-c++ make
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+```
+
+Depois, nos dois: `cargo xtask arch-check && cargo test --workspace` e `cargo install --path crates/app`. O CI também roda num container **Fedora** para garantir os dois mundos.
+
+- `mold` é opcional (só dev Linux).
 
 ## Clonar e verificar
 
