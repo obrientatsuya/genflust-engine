@@ -70,3 +70,14 @@ jobs:
 
       - name: Token budget
         run: cargo xtask token-budget
+
+      # Caminho real do usuário: instalar o binário e rodar a CLI num projeto.
+      - name: Install engine and smoke-test CLI (Fedora)
+        run: |
+          cargo install --path crates/app --locked
+          export PATH="$HOME/.cargo/bin:$PATH"
+          cd examples/hello
+          engine check
+          engine run --frames 2
+          engine screenshot --frames 2 --out out/smoke.png
+          test -f out/smoke.png
